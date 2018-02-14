@@ -1,4 +1,6 @@
 #include <armadillo>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <vector>
 
@@ -52,33 +54,72 @@ class NeuralNetwork {
 };
 
 struct Data {
-	Col<double> input;
-	Col<double> answer;
+	Col<double> x;
+	Col<double> y;
 };
 
 int main() {
 	srand(time(nullptr));
 
-	NeuralNetwork nn({2, 208, 1}, 0.1);
+	ifstream imgs, labels;
 
-	vector<Data> dataset = {
-		{{0, 0}, {0}}, {{0, 1}, {1}}, {{1, 0}, {1}}, {{1, 1}, {0}}};
+	imgs.open("MNIST/imgs/data", ios::binary);
+	labels.open("MNIST/labels/data", ios::binary);
 
-	for (int i = 0; i < 5000; ++i) {
-		random_shuffle(dataset.begin(), dataset.end());
-		for (auto &i : dataset)
-			nn.train(i.input, i.answer);
+	labels.seekg(8);
+	imgs.seekg(4);
+
+	unsigned char r[4];
+	int32_t num[3]{}; // amount, dim
+	int8_t c;
+
+	for (int i = 0; i < 3; ++i) {
+		imgs.read((char *)r, 4);
+
+		for (int k = 0; k < 2; ++k)
+			swap(r[k], r[3 - k]);
+
+		for (int k = 0; k < 4; ++k)
+			num[i] |= r[k] << (8 * k);
 	}
 
-	sort(dataset.begin(), dataset.end(), [](Data &a, Data &b) {
-		if (a.input(0) != b.input(0))
-			return a.input(0) < b.input(0);
-		else
-			return a.input(1) < b.input(1);
-	});
+	vector<Data> dataset(num[0]);
+
+	for (int i = 0; i < num[0]; ++i) {
+
+		Col<double> x(num[1] * num[2]);
+		Col<double> y(10, fill::zeros);
+
+		for (int k = 0; k < num[1] * num[2]; ++k) {
+			imgs.read(reinterpret_cast<char *>(&c), sizeof c);
+			x(k) = (double)c / 255.0;
+		}
+
+		labels.read(reinterpret_cast<char *>(&c), sizeof c);
+		y(c) = 1.0;
+
+		dataset[i].x = x;
+		dataset[i].y = y;
+	}
+
+	/*Dataset loaded*/
+
+	NeuralNetwork nn({num[1] * num[2], 16, 16, 10}, 0.1);
+
+	for (int i = 0; i < 10; ++i) {
+		random_shuffle(dataset.begin(), dataset.end());
+		for (auto &i : dataset)
+			nn.train(i.x, i.y);
+	}
+
+	int cnt = 0;
 
 	for (auto &i : dataset)
-		cout << nn.guess(i.input) << endl;
+		if (i.y.index_max() == nn.guess(i.x).index_max())
+			++cnt;
+
+	cout << cnt << " from " << num[0] << " is " << (double)cnt / num[0] * 100
+		 << '%' << endl;
 
 	return 0;
 }
