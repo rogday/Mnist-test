@@ -1,11 +1,19 @@
 #include <armadillo>
+#include <cassert>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <vector>
 
+#define ARMA_NO_DEBUG
+
 using namespace std;
 using namespace arma;
+
+struct Data {
+	Col<double> x;
+	Col<double> y;
+};
 
 class NeuralNetwork {
   private:
@@ -43,24 +51,36 @@ class NeuralNetwork {
 		return L[L.size() - 1];
 	}
 
-	void train(Col<double> &input, Col<double> &answer) {
-		Col<double> E = answer - guess(input);
+	int train(vector<Data> &dataset, int batchSize, int iterations) {
+		random_shuffle(dataset.begin(), dataset.end());
 
-		for (int i = W.size() - 1; i >= 0; --i) {
-			W[i] += lr * E % L[i + 1] % (1 - L[i + 1]) * L[i].t();
-			E = W[i].t() * E;
+		for (int j = 0; j < iterations; ++j) {
+			for (int i = 0; i < dataset.size() - batchSize; i += batchSize) {
+				Col<double> E(dataset[0].y.n_rows, fill::zeros);
+
+				for (int k = 0; k < batchSize; ++k)
+					E += (dataset[i + k].y - guess(dataset[i + k].x)) /
+						 batchSize;
+
+				for (int k = W.size() - 1; k >= 0; --k) {
+					W[k] += lr * E % L[k + 1] % (1 - L[k + 1]) * L[k].t();
+					E = W[k].t() * E;
+				}
+			}
+			cout << j << endl;
 		}
+
+		int cnt = 0;
+
+		for (auto &i : dataset)
+			if (i.y.index_max() == guess(i.x).index_max())
+				++cnt;
+
+		return 100 * cnt / dataset.size();
 	}
 };
 
-struct Data {
-	Col<double> x;
-	Col<double> y;
-};
-
-int main() {
-	srand(time(nullptr));
-
+int main(int argc, char *argv[]) {
 	ifstream imgs, labels;
 
 	imgs.open("MNIST/imgs/data", ios::binary);
@@ -74,7 +94,7 @@ int main() {
 	int8_t c;
 
 	for (int i = 0; i < 3; ++i) {
-		imgs.read((char *)r, 4);
+		imgs.read(reinterpret_cast<char *>(r), 4);
 
 		for (int k = 0; k < 2; ++k)
 			swap(r[k], r[3 - k]);
@@ -102,24 +122,8 @@ int main() {
 		dataset[i].y = y;
 	}
 
-	/*Dataset loaded*/
-
-	NeuralNetwork nn({num[1] * num[2], 16, 16, 10}, 0.1);
-
-	for (int i = 0; i < 10; ++i) {
-		random_shuffle(dataset.begin(), dataset.end());
-		for (auto &i : dataset)
-			nn.train(i.x, i.y);
-	}
-
-	int cnt = 0;
-
-	for (auto &i : dataset)
-		if (i.y.index_max() == nn.guess(i.x).index_max())
-			++cnt;
-
-	cout << cnt << " from " << num[0] << " is " << (double)cnt / num[0] * 100
-		 << '%' << endl;
+	NeuralNetwork nn({num[1] * num[2], 1000, 10}, atof(argv[3]));
+	cout << nn.train(dataset, atoi(argv[1]), atoi(argv[2])) << endl;
 
 	return 0;
 }
