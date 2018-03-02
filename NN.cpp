@@ -52,9 +52,10 @@ class NeuralNetwork {
 	}
 
 	int train(vector<Data> &dataset, int batchSize, int iterations) {
-		random_shuffle(dataset.begin(), dataset.end());
+		int cnt;
 
 		for (int j = 0; j < iterations; ++j) {
+			random_shuffle(dataset.begin(), dataset.end());
 			for (int i = 0; i < dataset.size() - batchSize; i += batchSize) {
 				Col<double> E(dataset[0].y.n_rows, fill::zeros);
 
@@ -67,14 +68,14 @@ class NeuralNetwork {
 					E = W[k].t() * E;
 				}
 			}
-			cout << j << endl;
+
+			cnt = 0;
+			for (auto &i : dataset)
+				if (i.y.index_max() == guess(i.x).index_max())
+					++cnt;
+
+			cout << j << ' ' << 100 * cnt / dataset.size() << endl;
 		}
-
-		int cnt = 0;
-
-		for (auto &i : dataset)
-			if (i.y.index_max() == guess(i.x).index_max())
-				++cnt;
 
 		return 100 * cnt / dataset.size();
 	}
@@ -122,8 +123,8 @@ int main(int argc, char *argv[]) {
 		dataset[i].y = y;
 	}
 
-	NeuralNetwork nn({num[1] * num[2], 1000, 10}, atof(argv[3]));
-	cout << nn.train(dataset, atoi(argv[1]), atoi(argv[2])) << endl;
+	NeuralNetwork nn({num[1] * num[2], 40, 10}, 0.1);
+	cout << nn.train(dataset, 1, 60) << endl;
 
 	return 0;
 }
