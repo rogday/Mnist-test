@@ -26,6 +26,7 @@ class NeuralNetwork {
   public:
 	NeuralNetwork(vector<int> &&vec, double lr)
 		: L(vec.size()), W(L.size() - 1), lr(lr) {
+		arma_rng::set_seed_random();
 		int n = vec.size() - 1;
 
 		for (int i = 0; i < n; ++i) {
