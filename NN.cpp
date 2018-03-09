@@ -37,7 +37,7 @@ class NeuralNetwork {
 		L[n] = colvec(vec[n]);
 
 		for (int i = 0; i < n; ++i)
-			W[i] = dmat(L[i + 1].n_rows, L[i].n_rows, fill::randu);
+			W[i] = dmat(L[i + 1].n_rows, L[i].n_rows, fill::randu) * 2 - 1.0;
 	}
 
 	Col<double> guess(Col<double> &input) {
@@ -52,10 +52,10 @@ class NeuralNetwork {
 		return L[L.size() - 1];
 	}
 
-	int train(vector<Data> &dataset, int batchSize, int iterations) {
+	int train(vector<Data> &dataset, int batchSize, int epochs) {
 		int cnt;
 
-		for (int j = 0; j < iterations; ++j) {
+		for (int j = 0; j < epochs; ++j) {
 			random_shuffle(dataset.begin(), dataset.end());
 			for (int i = 0; i < dataset.size() - batchSize; i += batchSize) {
 				Col<double> E(dataset[0].y.n_rows, fill::zeros);
@@ -65,8 +65,10 @@ class NeuralNetwork {
 						 batchSize;
 
 				for (int k = W.size() - 1; k >= 0; --k) {
-					W[k] += lr * E % L[k + 1] % (1 - L[k + 1]) * L[k].t();
+					Mat<double> delta =
+						lr * E % L[k + 1] % (1 - L[k + 1]) * L[k].t();
 					E = W[k].t() * E;
+					W[k] += delta;
 				}
 			}
 
@@ -75,7 +77,11 @@ class NeuralNetwork {
 				if (i.y.index_max() == guess(i.x).index_max())
 					++cnt;
 
-			cout << j << ' ' << 100 * cnt / dataset.size() << endl;
+			// double x = (double)100.0 * cnt / dataset.size();
+			// lr = exp(-x * x / 1300.0 + 0.53) + 0.06;
+
+			cout << lr << ": " << j << ' ' << 100 * cnt / dataset.size()
+				 << endl;
 		}
 
 		return 100 * cnt / dataset.size();
@@ -124,8 +130,11 @@ int main(int argc, char *argv[]) {
 		dataset[i].y = y;
 	}
 
-	NeuralNetwork nn({num[1] * num[2], 40, 10}, 0.1);
-	cout << nn.train(dataset, 1, 60) << endl;
+	dataset.resize(10000);
+	cout << dataset.size() << endl;
+
+	NeuralNetwork nn({num[1] * num[2], 30, 10}, atof(argv[1]));
+	cout << nn.train(dataset, 1, atoi(argv[2])) << endl;
 
 	return 0;
 }
